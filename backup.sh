@@ -1,20 +1,22 @@
 #!/bin/bash
 
+RESTIC_OUTPUT=NULL
+
 main() {
   load_configuration
   check_mail_support
-  restic "$@"
-  mail "INFO" "info - $1"
+  if execute_restic "$@"; then
+    mail "INFO - BACKUP successful" "$RESTIC_OUTPUT"
+  else
+    mail "INFO - BACKUP failed" "$RESTIC_OUTPUT"
+  fi
   exit 0
 }
 
 load_configuration() {
-  if [ ! -f .env ]; then
-    error ".env file with configuration not found"
-    exit 1
+  if [ -f .env ]; then
+    . .env
   fi
-
-  . .env
 
   export RESTIC_PASSWORD=$RESTIC_PASSWORD
   export RESTIC_REPOSITORY=$RESTIC_REPOSITORY
@@ -26,22 +28,37 @@ check_mail_support() {
     # shellcheck disable=SC2016
     info 'disabled sending mails as either $MAIL_TO and $MAIL_FROM are not set or sendmail is not installed'
     MAIL_DISABLED=true
+    return
   fi
 
   if [ "$(uname)" == "Darwin" ]; then
     warning "disabled sending mails although it is configured it is not supported on macOS"
     MAIL_DISABLED=true
+    return
   fi
 }
 
-# mail <cmd> <subject> <body>
+execute_restic() {
+  r=0
+  set -o pipefail
+  if ! output=$(restic "$@" 2>&1 | tee /dev/tty); then
+    error "backup failed"
+    r=1
+  fi
+  # shellcheck disable=SC2001
+  RESTIC_OUTPUT=$(sed 's/^/> /' <<<"$output")
+  set +o pipefail
+  return $r
+}
+
+# mail <subject> <body>
 mail() {
   if [ "$MAIL_DISABLED" = true ]; then return; fi
 
   if ! output=$({
     echo "From: $MAIL_FROM"
-    echo "Subject: $1 $HOSTNAME - $2"
-    echo "$3"
+    echo "Subject: $1"
+    echo "$2"
   } | sendmail -v "$MAIL_TO" 2>&1); then
     error "failed to send mail"
     error "$(echo "$output" | grep -vE '^\[(<-|->)\] ')"
