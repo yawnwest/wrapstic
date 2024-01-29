@@ -1,20 +1,26 @@
 #!/bin/bash
 
+MAIL_DISABLED=false
+CMD=NULL
 RESTIC_OUTPUT=NULL
 
 main() {
-  START_TIME=$(date +%s)
+  start_time=$(date +%s)
   load_configuration
   check_mail_support
+  set_cmd "$@"
   if execute_restic "$@"; then
     status="successful"
   else
     status="failed"
   fi
-  END_TIME=$(date +%s)
-  DURATION=$(((END_TIME - START_TIME) / 60))
-  MSG=$(echo -e "Duration - $DURATION minutes\n\n$RESTIC_OUTPUT")
-  mail "INFO - BACKUP $status" "$MSG"
+  end_time=$(date +%s)
+  duration=$(((end_time - start_time) / 60))
+  log "--- SUMMARY ---"
+  log "Status: $CMD $status"
+  log "Duration: $duration minutes"
+  msg=$(echo -e "Duration - $duration minutes\n\n$RESTIC_OUTPUT")
+  mail "INFO - $CMD $status" "$msg"
   exit 0
 }
 
@@ -43,11 +49,25 @@ check_mail_support() {
   fi
 }
 
+set_cmd() {
+  for arg in "$@"; do
+    if [[ $arg != -* ]]; then
+      r="$arg"
+      break
+    fi
+  done
+
+  if [ -z "$r" ]; then
+    r="Unknown command"
+  fi
+
+  CMD=$(echo "$r" | awk '{print toupper( substr( $0, 1, 1 ) ) substr( $0, 2 ); }')
+}
+
 execute_restic() {
   r=0
   set -o pipefail
   if ! output=$(restic "$@" 2>&1 | tee /dev/tty); then
-    error "backup failed"
     r=1
   fi
   # shellcheck disable=SC2001
