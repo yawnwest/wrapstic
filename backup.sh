@@ -3,13 +3,18 @@
 RESTIC_OUTPUT=NULL
 
 main() {
+  START_TIME=$(date +%s)
   load_configuration
   check_mail_support
   if execute_restic "$@"; then
-    mail "INFO - BACKUP successful" "$RESTIC_OUTPUT"
+    status="successful"
   else
-    mail "INFO - BACKUP failed" "$RESTIC_OUTPUT"
+    status="failed"
   fi
+  END_TIME=$(date +%s)
+  DURATION=$(((END_TIME - START_TIME) / 60))
+  MSG=$(echo -e "Duration - $DURATION minutes\n\n$RESTIC_OUTPUT")
+  mail "INFO - BACKUP $status" "$MSG"
   exit 0
 }
 
