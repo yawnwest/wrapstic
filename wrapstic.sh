@@ -91,6 +91,16 @@ check_prequisites() {
     error "$OUTPUT"
     return 1
   fi
+  if ! command -v nc &>/dev/null; then
+    OUTPUT="netcat is not installed"
+    error "$OUTPUT"
+    return 1
+  fi
+  if ! command -v bc &>/dev/null; then
+    OUTPUT="bc is not installed"
+    error "$OUTPUT"
+    return 1
+  fi
   if ! nc -z "$SERVER" 23 2>/dev/null; then
     OUTPUT="${SERVER}:23 not reachable"
     error "$OUTPUT"
