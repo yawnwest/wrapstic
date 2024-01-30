@@ -1,3 +1,4 @@
 .env
 test/
 tmp.sh
+.DS_Store

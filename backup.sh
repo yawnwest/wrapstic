@@ -2,24 +2,32 @@
 
 MAIL_DISABLED=false
 CMD=NULL
-RESTIC_OUTPUT=NULL
+OUTPUT=NULL
 
 main() {
   start_time=$(date +%s)
   load_configuration
   check_mail_support
   set_cmd "$@"
-  if execute_restic "$@"; then
-    status="successful"
-  else
+  check_prequisites
+  preq_met=$?
+  if [ "$preq_met" = 0 ]; then
+    if execute_restic "$@"; then
+      status="successful"
+    else
+      status="failed"
+    fi
+  elif [ "$preq_met" = 1 ]; then
     status="failed"
+  else
+    status="successful"
   fi
   end_time=$(date +%s)
   duration=$(((end_time - start_time) / 60))
   log "--- SUMMARY ---"
   log "Status: $CMD $status"
   log "Duration: $duration minutes"
-  msg=$(echo -e "Duration - $duration minutes\n\n$RESTIC_OUTPUT")
+  msg=$(echo -e "Duration - $duration minutes\n\n$OUTPUT")
   mail "INFO - $CMD $status" "$msg"
   exit 0
 }
@@ -43,7 +51,7 @@ check_mail_support() {
   fi
 
   if [ "$(uname)" == "Darwin" ]; then
-    warning "disabled sending mails although it is configured it is not supported on macOS"
+    warning "disabled sending mails. although it is configured it is not supported on macOS"
     MAIL_DISABLED=true
     return
   fi
@@ -64,6 +72,25 @@ set_cmd() {
   CMD=$(echo "$r" | awk '{print toupper( substr( $0, 1, 1 ) ) substr( $0, 2 ); }')
 }
 
+check_prequisites() {
+  if ! command -v restic &>/dev/null; then
+    OUTPUT="restic is not installed"
+    error "$OUTPUT"
+    return 1
+  fi
+  if ! nc -z "$SERVER" 23 2>/dev/null; then
+    OUTPUT="${SERVER}:23 not reachable"
+    error "$OUTPUT"
+    return 1
+  fi
+  if pgrep -x "restic" >/dev/null; then
+    OUTPUT="backup job is already running. skip backup"
+    info "$OUTPUT"
+    return 2
+  fi
+  return 0
+}
+
 execute_restic() {
   r=0
   set -o pipefail
@@ -71,7 +98,7 @@ execute_restic() {
     r=1
   fi
   # shellcheck disable=SC2001
-  RESTIC_OUTPUT=$(sed 's/^/> /' <<<"$output")
+  OUTPUT=$(sed 's/^/> /' <<<"$output")
   set +o pipefail
   return $r
 }
