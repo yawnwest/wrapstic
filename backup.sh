@@ -4,6 +4,7 @@ MAIL_DISABLED=false
 CMD=NULL
 OUTPUT=NULL
 REPO_INIT=NULL
+FREE_STORAGE="-"
 
 main() {
   start_time=$(date +%s)
@@ -30,12 +31,16 @@ main() {
   else # a backup is already running
     status="successful"
   fi
+  if [ ! "$preq_met" = 1 ]; then # prequsites met
+    check_free_storage
+  fi
   end_time=$(date +%s)
   duration=$(((end_time - start_time) / 60))
   log "--- SUMMARY ---"
   log "Status: $CMD $status"
   log "Duration: $duration minutes"
-  msg=$(echo -e "Duration - $duration minutes\nRepository initialization - $REPO_INIT\n\n$OUTPUT")
+  log "Storage usage: $FREE_STORAGE"
+  msg=$(echo -e "Duration - $duration minutes\nRepository initialization - $REPO_INIT\nStorage usage - $FREE_STORAGE\n\n$OUTPUT")
   mail "INFO - $CMD $status" "$msg"
   exit 0
 }
@@ -129,6 +134,27 @@ execute_restic() {
   OUTPUT=$(sed 's/^/> /' <<<"$output")
   set +o pipefail
   return $r
+}
+
+check_free_storage() {
+  if [[ -z $MAX_STORAGE ]] || [[ -z $THRESHOLD ]]; then
+    # We want this to output $MAX_STORAGE and $THRESHOLD without expansion
+    # shellcheck disable=SC2016
+    FREE_STORAGE='storage check disabled. set $MAX_STORAGE and $THRESHOLD to enable it'
+  fi
+
+  if STORAGE_INFO=$(ssh "$SERVER" du -s /home 2>&1); then
+    USED_STORAGE=$(echo "$STORAGE_INFO" | cut -f1)
+    USED_PERCENT=$(printf %.2f "$(echo "$USED_STORAGE / $MAX_STORAGE * 100" | bc -l)")
+    if (($(echo "$USED_PERCENT > $THRESHOLD" | bc -l))); then
+      FREE_STORAGE="$USED_PERCENT%. WARNING: this is more than the threshold of $THRESHOLD%"
+    else
+      FREE_STORAGE="$USED_PERCENT%"
+    fi
+  else
+    echo "$USED_STORAGE"
+    FREE_STORAGE="failed to determine free storage"
+  fi
 }
 
 # mail <subject> <body>
