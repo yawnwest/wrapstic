@@ -3,6 +3,7 @@
 MAIL_DISABLED=false
 CMD=NULL
 OUTPUT=NULL
+REPO_INIT=NULL
 
 main() {
   start_time=$(date +%s)
@@ -12,8 +13,15 @@ main() {
   check_prequisites
   preq_met=$?
   if [ "$preq_met" = 0 ]; then
-    if execute_restic "$@"; then
-      status="successful"
+    initialize_repository
+    init_repo=$?
+    if [ ! "$init_repo" = 2 ]; then
+      log "start $CMD"
+      if execute_restic "$@"; then
+        status="successful"
+      else
+        status="failed"
+      fi
     else
       status="failed"
     fi
@@ -27,7 +35,7 @@ main() {
   log "--- SUMMARY ---"
   log "Status: $CMD $status"
   log "Duration: $duration minutes"
-  msg=$(echo -e "Duration - $duration minutes\n\n$OUTPUT")
+  msg=$(echo -e "Duration - $duration minutes\nRepository initialization - $REPO_INIT\n\n$OUTPUT")
   mail "INFO - $CMD $status" "$msg"
   exit 0
 }
@@ -89,6 +97,26 @@ check_prequisites() {
     return 2
   fi
   return 0
+}
+
+initialize_repository() {
+  if restic cat config >/dev/null 2>&1; then
+    REPO_INIT="repository $RESTIC_REPOSITORY already initialized"
+    log "$REPO_INIT"
+    return 0
+  else
+    log "repository $RESTIC_REPOSITORY is not initialized"
+    log "initialize repository $RESTIC_REPOSITORY, now"
+    if restic init 2>/dev/null; then
+      REPO_INIT="successfully intialized repository $RESTIC_REPOSITORY"
+      log "$REPO_INIT"
+      return 1
+    else
+      REPO_INIT="failed to intialize repository $RESTIC_REPOSITORY on ${HETZNER_SERVER}:${HETZNER_PORT}"
+      error "$REPO_INIT"
+      return 2
+    fi
+  fi
 }
 
 execute_restic() {
