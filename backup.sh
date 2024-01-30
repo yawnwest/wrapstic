@@ -12,22 +12,22 @@ main() {
   set_cmd "$@"
   check_prequisites
   preq_met=$?
-  if [ "$preq_met" = 0 ]; then
+  if [ "$preq_met" = 0 ]; then # all requirements met
     initialize_repository
     init_repo=$?
-    if [ ! "$init_repo" = 2 ]; then
+    if [ ! "$init_repo" = 2 ]; then # repo successfully/already initialized
       log "start $CMD"
-      if execute_restic "$@"; then
+      if execute_restic "$@"; then # restic successful
         status="successful"
-      else
+      else # restic failed
         status="failed"
       fi
-    else
+    else # repo not initialized
       status="failed"
     fi
-  elif [ "$preq_met" = 1 ]; then
+  elif [ "$preq_met" = 1 ]; then # prequisites not met
     status="failed"
-  else
+  else # a backup is already running
     status="successful"
   fi
   end_time=$(date +%s)
