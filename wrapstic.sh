@@ -46,10 +46,6 @@ main() {
 }
 
 load_configuration() {
-  if [ -f .env ]; then
-    . .env
-  fi
-
   export RESTIC_PASSWORD=$RESTIC_PASSWORD
   export RESTIC_REPOSITORY=$RESTIC_REPOSITORY
 }
@@ -137,8 +133,15 @@ initialize_repository() {
 execute_restic() {
   r=0
   set -o pipefail
-  if ! output=$(restic "$@" 2>&1 | tee /dev/tty); then
-    r=1
+  # tee does not work in non-interactive shells (e.g., when called from cron)
+  if tty -s; then
+    if ! output=$(restic "$@" 2>&1 | tee /dev/tty); then
+      r=1
+    fi
+  else
+    if ! output=$(restic "$@" 2>&1); then
+      r=1
+    fi
   fi
   # shellcheck disable=SC2001
   OUTPUT=$(sed 's/^/> /' <<<"$output")
