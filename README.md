@@ -3,7 +3,7 @@ Wraps restic in a shell script and adds comfort features as well as notification
 
 ## Usage
 ```bash
-./wrapstic.sh <restic parameters>
+export $(cat /config/scripts/.env | xargs) && ./wrapstic.sh <restic parameters>
 ```
 
 ## Setup
